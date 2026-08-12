@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>So öffnest du das PDF-Siebesiech</title>
+<style>
+  :root{
+    --rot:#b8231a; --rot-hell:#fbeae8;
+    --tinte:#1f2430; --grau:#5b6270; --linie:#e4e7ec;
+    --gelb:#fff7e0; --gelb-linie:#f2d888;
+    --gruen:#e9f6ee; --gruen-linie:#9cd6b0;
+    --karte:#ffffff; --bg:#f4f5f7;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+    background:var(--bg); color:var(--tinte);
+    font-size:20px; line-height:1.6;
+    padding:32px 20px 64px;
+  }
+  .blatt{max-width:820px; margin:0 auto}
+  .kopf{display:flex; align-items:center; gap:16px; margin-bottom:8px}
+  .logo{
+    width:64px;height:64px;border-radius:18px;background:var(--rot);
+    display:grid;place-items:center;flex:none;
+    box-shadow:0 6px 18px rgba(184,35,26,.28);
+  }
+  .logo svg{width:38px;height:38px;stroke:#fff}
+  h1{font-size:34px; line-height:1.15; margin:0; letter-spacing:-.5px}
+  .unter{color:var(--grau); font-size:19px; margin:4px 0 28px}
+
+  .karte{
+    background:var(--karte); border:1px solid var(--linie);
+    border-radius:20px; padding:24px 26px; margin:18px 0;
+    box-shadow:0 1px 2px rgba(20,23,31,.04);
+  }
+  .weg-titel{display:flex; align-items:center; gap:14px; margin:0 0 14px}
+  .marke{
+    flex:none; width:44px;height:44px;border-radius:50%;
+    background:var(--rot); color:#fff; font-weight:800; font-size:22px;
+    display:grid;place-items:center;
+  }
+  .weg-titel h2{margin:0; font-size:24px}
+  .best{ /* der einfache Weg */
+    border-color:var(--gruen-linie); background:var(--gruen);
+  }
+  .best .marke{background:#2e9e5b}
+
+  .knopf-link{
+    display:inline-flex; align-items:center; gap:12px;
+    background:var(--rot); color:#fff; text-decoration:none;
+    font-size:22px; font-weight:700;
+    padding:16px 26px; border-radius:16px; margin-top:6px;
+    box-shadow:0 6px 16px rgba(184,35,26,.28);
+  }
+  .knopf-link svg{width:26px;height:26px;stroke:#fff}
+  .knopf-link:hover{background:#9d1e16}
+
+  .adresse{
+    display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px;
+    background:#fff; border:2px dashed var(--rot);
+    border-radius:14px; padding:16px 18px; margin:10px 0 6px;
+    font-size:26px; font-weight:700; letter-spacing:.3px;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    word-break:break-word;
+  }
+  .adresse .teil{color:var(--tinte)}
+  .adresse .zeichen{color:var(--rot)}
+  .mini{color:var(--grau); font-size:17px; margin-top:8px}
+
+  .tipp{
+    display:flex; gap:14px; align-items:flex-start;
+    background:var(--gelb); border:1px solid var(--gelb-linie);
+    border-radius:16px; padding:16px 20px; margin:22px 0;
+    font-size:19px;
+  }
+  .tipp .stern{flex:none; width:30px;height:30px}
+  .tipp b{color:#9a6b00}
+
+  ul.klar{margin:10px 0 0; padding-left:0; list-style:none}
+  ul.klar li{display:flex; gap:12px; margin:10px 0}
+  ul.klar .pkt{flex:none;width:26px;height:26px;border-radius:50%;
+    background:var(--rot-hell);color:var(--rot);display:grid;place-items:center;
+    font-weight:800; font-size:15px; margin-top:2px}
+
+  .fuss{margin-top:34px; color:var(--grau); font-size:16px; text-align:center}
+
+  @media print{
+    body{background:#fff; font-size:16px; padding:0}
+    .karte{box-shadow:none}
+    .knopf-link{box-shadow:none}
+    .logo{box-shadow:none}
+  }
+</style>
+</head>
+<body>
+<div class="blatt">
+
+  <div class="kopf">
+    <span class="logo" aria-hidden="true">
+      <!-- Dokument-Symbol -->
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <path d="M14 2v6h6"/>
+      </svg>
+    </span>
+    <div>
+      <h1>So öffnest du das PDF-Siebesiech</h1>
+    </div>
+  </div>
+  <p class="unter">Du brauchst <b>nichts installieren</b>. Es läuft einfach im Browser (Edge oder Chrome).</p>
+
+  <!-- Weg 1: einfach -->
+  <div class="karte best">
+    <div class="weg-titel">
+      <span class="marke">1</span>
+      <h2>Am einfachsten: auf den Link klicken</h2>
+    </div>
+    <p style="margin:0 0 6px">Deine Lehrperson schickt oder zeigt dir den Link.<br>Klicke ihn an — fertig.</p>
+    <a class="knopf-link" href="https://ceccaroni.github.io/pdf-siebesiech/">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+      </svg>
+      PDF-Siebesiech öffnen
+    </a>
+    <p class="mini">(Auf diesem Blatt am Bildschirm kannst du den roten Knopf direkt anklicken.)</p>
+  </div>
+
+  <!-- Weg 2: abtippen -->
+  <div class="karte">
+    <div class="weg-titel">
+      <span class="marke">2</span>
+      <h2>Oder die Adresse abtippen</h2>
+    </div>
+    <p style="margin:0 0 4px">Tippe das oben in die Adresszeile des Browsers.<br>Schreibe <b>alles klein</b>. Kein «www».</p>
+    <div class="adresse" aria-label="ceccaroni punkt github punkt io schrägstrich pdf-siebesiech">
+      <span class="teil">ceccaroni</span><span class="zeichen">.</span>
+      <span class="teil">github</span><span class="zeichen">.</span>
+      <span class="teil">io</span><span class="zeichen">/</span>
+      <span class="teil">pdf-siebesiech</span>
+    </div>
+    <ul class="klar">
+      <li><span class="pkt">.</span><span>Der <b>Punkt</b> ist ein normaler Punkt.</span></li>
+      <li><span class="pkt">/</span><span>Der <b>Schrägstrich</b> ist die Taste bei «7» (mit Shift) oder rechts unten.</span></li>
+      <li><span class="pkt">-</span><span>Bei <b>pdf-siebesiech</b> ist ein <b>Bindestrich</b> in der Mitte.</span></li>
+    </ul>
+  </div>
+
+  <!-- Tipp: Lesezeichen -->
+  <div class="tipp">
+    <svg class="stern" viewBox="0 0 24 24" fill="#f5b301" stroke="#c98a00" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+    </svg>
+    <div><b>Tipp:</b> Klicke oben im Browser auf den <b>Stern ☆</b>. So speicherst du die Seite als Lesezeichen und findest sie morgen sofort wieder — ohne Tippen.</div>
+  </div>
+
+  <p class="unter" style="margin:22px 0 0">
+    Beim <b>ersten Mal</b> brauchst du Internet.
+    Danach merkt sich der Laptop die App — sie geht dann auch <b>ohne Internet</b>.
+  </p>
+
+  <p class="fuss">PDF-Siebesiech · läuft komplett auf deinem Laptop · nichts wird hochgeladen</p>
+
+</div>
+</body>
+</html>

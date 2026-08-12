@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PDF-Siebesiech — so geht's</title>
+<style>
+  :root{
+    --rot:#b8231a; --rot-hell:#fbeae8;
+    --tinte:#1f2430; --grau:#5b6270; --linie:#e4e7ec;
+    --gelb:#fff7e0; --gelb-linie:#f2d888;
+    --blau:#e8f1fb; --blau-linie:#a9cbf0;
+    --karte:#ffffff; --bg:#f4f5f7;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+    background:var(--bg); color:var(--tinte);
+    font-size:20px; line-height:1.55; padding:32px 20px 64px;
+  }
+  .blatt{max-width:860px; margin:0 auto}
+  h1{font-size:34px; margin:0 0 4px; letter-spacing:-.5px}
+  .unter{color:var(--grau); font-size:19px; margin:0 0 26px}
+
+  /* Knopf-Nachbildungen (sehen aus wie in der App) */
+  .btn{display:inline-flex; align-items:center; gap:8px; border-radius:11px;
+    font-weight:700; font-size:17px; padding:9px 15px; vertical-align:middle;
+    white-space:nowrap}
+  .btn svg{width:19px;height:19px}
+  .btn-rot{background:var(--rot); color:#fff}
+  .btn-rot svg{stroke:#fff}
+  .btn-weiss{background:#fff; color:var(--tinte); border:1.5px solid var(--linie)}
+  .btn-weiss svg{stroke:var(--tinte)}
+  .btn-menu{background:#fff; color:var(--tinte); border:1.5px solid var(--linie);
+    font-size:16px; padding:8px 13px}
+  .btn-menu .sc{color:var(--rot)}
+  .btn-menu svg{stroke:var(--rot)}
+  .kreis{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:9px;
+    border:1.5px solid var(--linie); background:#fff; vertical-align:middle}
+  .kreis svg{width:19px;height:19px;stroke:var(--tinte)}
+  .kreis.gefahr{border-color:var(--rot-hell); background:var(--rot-hell)}
+  .kreis.gefahr svg{stroke:var(--rot)}
+
+  /* Aufgaben-Block */
+  .aufgabe{background:var(--karte); border:1px solid var(--linie);
+    border-radius:22px; padding:26px 28px; margin:22px 0;
+    box-shadow:0 1px 2px rgba(20,23,31,.04)}
+  .a-kopf{display:flex; align-items:center; gap:16px; margin:0 0 6px}
+  .a-num{flex:none; width:52px;height:52px;border-radius:15px; background:var(--rot);
+    color:#fff; font-weight:800; font-size:26px; display:grid;place-items:center}
+  .a-kopf h2{margin:0; font-size:26px; line-height:1.1}
+  .a-ziel{color:var(--grau); font-size:18px; margin:0 0 18px 68px}
+
+  ol.schritte{list-style:none; margin:0; padding:0; counter-reset:s}
+  ol.schritte>li{position:relative; padding:14px 0 14px 56px; border-top:1px solid var(--linie)}
+  ol.schritte>li:first-child{border-top:none}
+  ol.schritte>li::before{counter-increment:s; content:counter(s);
+    position:absolute; left:0; top:12px;
+    width:36px;height:36px;border-radius:50%;
+    background:var(--rot-hell); color:var(--rot); font-weight:800; font-size:19px;
+    display:grid; place-items:center}
+  .schritt-t{font-weight:600}
+  .schritt-x{color:var(--grau); font-size:18px; margin-top:2px}
+
+  .callout{display:flex; gap:14px; align-items:flex-start; border-radius:16px;
+    padding:15px 18px; margin:14px 0 0; font-size:18px}
+  .c-gelb{background:var(--gelb); border:1px solid var(--gelb-linie)}
+  .c-gelb b{color:#9a6b00}
+  .c-blau{background:var(--blau); border:1px solid var(--blau-linie)}
+  .ico-callout{flex:none;width:26px;height:26px;margin-top:1px}
+
+  .legende{display:flex; flex-wrap:wrap; gap:10px 22px; background:#fff;
+    border:1px solid var(--linie); border-radius:16px; padding:16px 20px; margin:0 0 26px}
+  .legende .z{display:flex; align-items:center; gap:9px; font-size:16px; color:var(--grau)}
+
+  .fertig{display:flex; gap:16px; align-items:flex-start; background:#eef8f1;
+    border:1px solid #9cd6b0; border-radius:18px; padding:20px 24px; margin:26px 0 0}
+  .fertig .h{font-size:22px; font-weight:800; margin:0 0 4px}
+  .fertig svg{flex:none;width:34px;height:34px;stroke:#2e9e5b}
+
+  .fuss{margin-top:30px; color:var(--grau); font-size:16px; text-align:center}
+  b.wort{color:var(--rot)}
+
+  @media print{
+    body{background:#fff; font-size:15px; padding:0}
+    .aufgabe{box-shadow:none; break-inside:avoid}
+    .aufgabe:nth-of-type(2){break-before:page}
+  }
+</style>
+</head>
+<body>
+<div class="blatt">
+
+  <h1>PDF-Siebesiech — so geht's</h1>
+  <p class="unter">Zwei Dinge lernst du hier: PDF <b>zusammenkleben</b> und ein grosses PDF <b>zerschneiden</b>.</p>
+
+  <!-- Zeichen-Legende -->
+  <div class="legende">
+    <span class="z">
+      <span class="btn btn-weiss"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h14a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2v4"/><path d="M14 2v6h6"/><path d="M3 15h6"/><path d="M6 12v6"/></svg>Öffnen</span>
+      = PDF dazuholen
+    </span>
+    <span class="z">
+      <span class="btn btn-rot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>Exportieren</span>
+      = speichern
+    </span>
+    <span class="z">
+      <span class="kreis gefahr"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></span>
+      = löschen
+    </span>
+  </div>
+
+  <!-- AUFGABE 1: Zusammenfügen -->
+  <div class="aufgabe">
+    <div class="a-kopf">
+      <span class="a-num">A</span>
+      <h2>Mehrere PDF zu <u>einem</u> zusammenfügen</h2>
+    </div>
+    <p class="a-ziel">Du hast 2 oder 3 PDF und willst am Schluss <b>ein einziges</b>.</p>
+
+    <ol class="schritte">
+      <li>
+        <div class="schritt-t">Öffne das PDF-Siebesiech.</div>
+        <div class="schritt-x">Wie das geht, steht auf dem anderen Blatt.</div>
+      </li>
+      <li>
+        <div class="schritt-t">Ziehe die <b>erste</b> PDF mit der Maus ins Fenster.</div>
+        <div class="schritt-x">Oder klicke den grossen roten Knopf «PDF öffnen» und wähle sie aus.</div>
+      </li>
+      <li>
+        <div class="schritt-t">Ziehe die <b>nächste</b> PDF auch hinein.</div>
+        <div class="schritt-x">Sie hängt sich automatisch hinten an. So machst du es mit allen.</div>
+      </li>
+      <li>
+        <div class="schritt-t">Stimmt die Reihenfolge nicht?</div>
+        <div class="schritt-x">Ziehe links eine Seite mit der Maus nach oben oder unten.</div>
+      </li>
+      <li>
+        <div class="schritt-t">Klicke oben rechts auf
+          <span class="btn btn-rot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>Exportieren</span>
+        </div>
+        <div class="schritt-x">Fertig! Alle PDF sind jetzt in <b>einer</b> Datei.</div>
+      </li>
+    </ol>
+
+    <div class="callout c-blau">
+      <svg class="ico-callout" viewBox="0 0 24 24" fill="none" stroke="#2f6fb0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l-3 3 3 3"/><path d="M9 5l3-3 3 3"/><path d="M15 19l-3 3-3-3"/><path d="M19 9l3 3-3 3"/><path d="M2 12h20"/><path d="M12 2v20"/></svg>
+      <div><b>«Ziehen»</b> heisst: Maustaste auf der Seite <b>gedrückt halten</b>, bewegen, dann <b>loslassen</b>.</div>
+    </div>
+  </div>
+
+  <!-- AUFGABE 2: Auseinandernehmen -->
+  <div class="aufgabe">
+    <div class="a-kopf">
+      <span class="a-num">B</span>
+      <h2>Aus einem <u>grossen</u> PDF nur ein paar Seiten</h2>
+    </div>
+    <p class="a-ziel">Du hast ein dickes PDF und willst nur ein <b>Stück</b> davon.</p>
+
+    <ol class="schritte">
+      <li>
+        <div class="schritt-t">Öffne das PDF-Siebesiech und ziehe das <b>grosse</b> PDF hinein.</div>
+        <div class="schritt-x">Links siehst du jetzt alle Seiten als kleine Bilder.</div>
+      </li>
+      <li>
+        <div class="schritt-t">Klicke die Seiten an, die du <b>behalten</b> willst.</div>
+        <div class="schritt-x">Angeklickte Seiten bekommen einen <b class="wort">roten Rahmen</b>.</div>
+      </li>
+      <li>
+        <div class="schritt-t">Mehrere Seiten? Halte die Taste <kbd>⇧ Shift</kbd> gedrückt und klicke.</div>
+        <div class="schritt-x">Shift ist die grosse Pfeil-nach-oben-Taste links.</div>
+      </li>
+      <li>
+        <div class="schritt-t">Klicke auf
+          <span class="btn btn-rot"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>Exportieren</span>
+          und dann auf
+          <span class="btn btn-menu"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><path d="M8.12 8.12 12 12"/><path d="M20 4 8.12 15.88"/><circle cx="6" cy="18" r="3"/><path d="M14.8 14.8 20 20"/></svg><span class="sc">Nur Auswahl</span></span>
+        </div>
+        <div class="schritt-x">Nur deine ausgewählten Seiten werden als neues PDF gespeichert.</div>
+      </li>
+    </ol>
+
+    <div class="callout c-gelb">
+      <svg class="ico-callout" viewBox="0 0 24 24" fill="none" stroke="#c98a00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+      <div><b>Anderer Weg:</b> Klicke die Seiten an, die <b>weg</b> sollen. Dann oben links auf den <b>roten Papierkorb</b>. Danach ganz normal auf «Exportieren».</div>
+    </div>
+  </div>
+
+  <!-- Wo ist die Datei -->
+  <div class="fertig">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+    <div>
+      <p class="h">Wo ist meine fertige Datei?</p>
+      <p style="margin:0">Im Ordner <b>«Downloads»</b> (Downloads = «heruntergeladen»).<br>Du kannst sie dort anklicken, umbenennen und abgeben.</p>
+    </div>
+  </div>
+
+  <p class="fuss">PDF-Siebesiech · alles bleibt auf deinem Laptop · nichts wird ins Internet geladen</p>
+
+</div>
+</body>
+</html>
