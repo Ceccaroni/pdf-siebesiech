@@ -1,0 +1,20 @@
+{
+  "name": "PDF-Siebesiech",
+  "short_name": "PDF-Siebesiech",
+  "description": "PDFs lesen, Seiten ordnen und bearbeiten – komplett offline im Browser, ohne Installation.",
+  "lang": "de-CH",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f7f7f6",
+  "theme_color": "#b8231a",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
