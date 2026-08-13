@@ -49,6 +49,11 @@ export async function openDocument(
     // Für schwache Geräte konservativ:
     disableAutoFetch: true,
     disableStream: false,
+    // Ohne wasmUrl bricht pdf.js' WASM-JBIG2-Decoder still ab (Bild wird
+    // ignoriert) — betrifft v.a. Scans von Multifunktionsgeräten (Xerox u.a.),
+    // die JBIG2 für den Text-/Strichlayer nutzen. Relativ zur aktuellen Seiten-
+    // URL aufgelöst → funktioniert auch im GitHub-Pages-Unterpfad.
+    wasmUrl: new URL('wasm/', document.baseURI).href,
   })
   const pdf = await task.promise
   openDocs.set(docId, { pdf, task })
