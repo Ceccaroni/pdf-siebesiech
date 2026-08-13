@@ -25,10 +25,23 @@ Editor (Text · Weissfläche · **Text korrigieren in Originalschrift**) · Expo
 **+ Split** · **PWA/Offline** · „Über"-Dialog mit Logo.
 
 ## Nächste Schritte
-1. **Browser-Gegencheck der Vorschau** (offen aus 2c): Export ist end-to-end
-   validiert (Node), die **Editor-Vorschau** wurde grundlinien-genau umgebaut,
-   aber noch nicht im echten Browser gegengeprüft. `npm run dev` → Motischreiben →
-   Stift → Datumszeile → sitzt es deckungsgleich?
+1. **Browser-Gegencheck der Vorschau** (offen aus 2c, jetzt erweitert): Export ist
+   end-to-end validiert (Node), die **Editor-Vorschau** wurde grundlinien-genau
+   umgebaut, aber noch nicht im echten Browser gegengeprüft. `npm run dev` →
+   Motischreiben → Stift → Datumszeile → sitzt es deckungsgleich?
+   **Neu (2026-08-13): Absatz-Korrektur.** „Text korrigieren" gruppiert jetzt
+   ganze Absätze statt Einzelzeilen (`src/engine/textBlocks.ts`, geometrische
+   Heuristik: gleicher Rand/Schrift/Zeilenabstand). Editier-Feld ist neu ein
+   `<textarea>` (nativ mehrzeilig, wrappt an der Original-Box-Breite); Export
+   wrappt mit derselben Logik (`wrapParagraph` in `exportPdf.ts`, pdf-lib-
+   Textmetrik) — WYSIWYG zwischen Vorschau und Export. **Headless verifiziert:**
+   Gruppierungs-Heuristik mit synthetischen Zeilen (Absätze korrekt getrennt/
+   zusammengeführt), Wortumbruch mit echten pdf-lib-Metriken, voller Rundweg
+   Annotation→`assemblePdf`→`pdftotext` (Absatz vollständig, korrekt umgebrochen).
+   **Noch nicht geprüft:** visuelles Editor-Erlebnis (Hotspot-Klick, Textarea-
+   Auto-Höhe, Grundlinien-Optik bei echten mehrzeiligen Absätzen) — Teil des
+   obigen Browser-Gegenchecks. Bekannte Grenzen der Heuristik: erkennt keine
+   zentrierten Absätze und keinen Erstzeilen-Einzug (bleiben Einzeilen-Blöcke).
 2. **T-001 — Echte Redaktion** (vom Nutzer gewünscht): Originaltext wirklich aus
    dem Content-Stream entfernen, nicht nur überdecken.
    → `docs/tickets/T-001-echte-redaktion.md`.

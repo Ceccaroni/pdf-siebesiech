@@ -10,6 +10,7 @@ import type {
   Tool,
 } from '../engine/types'
 import { getPageTextRuns, renderPageImage } from '../engine/pdfEngine'
+import { groupTextRunsIntoBlocks, type TextBlock } from '../engine/textBlocks'
 import {
   baselineFromTopPx,
   ensurePreviewFont,
@@ -33,7 +34,10 @@ function toHex(n: number): string {
  * Lauf-Fläche. Der dunkle Text ist dort in der Minderheit → der Median trifft
  * den Hintergrund (auch bei zartem Farbverlauf). Fällt auf Weiss zurück.
  */
-async function sampleBackground(imgUrl: string, run: TextRun): Promise<string> {
+async function sampleBackground(
+  imgUrl: string,
+  rect: { nx: number; ny: number; nw: number; nh: number },
+): Promise<string> {
   const img = new Image()
   img.src = imgUrl
   await img.decode()
@@ -45,10 +49,10 @@ async function sampleBackground(imgUrl: string, run: TextRun): Promise<string> {
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return '#ffffff'
   ctx.drawImage(img, 0, 0)
-  const x0 = Math.max(0, Math.floor(run.nx * W))
-  const y0 = Math.max(0, Math.floor(run.ny * H))
-  const w = Math.max(1, Math.min(W - x0, Math.ceil(run.nw * W)))
-  const h = Math.max(1, Math.min(H - y0, Math.ceil(run.nh * H)))
+  const x0 = Math.max(0, Math.floor(rect.nx * W))
+  const y0 = Math.max(0, Math.floor(rect.ny * H))
+  const w = Math.max(1, Math.min(W - x0, Math.ceil(rect.nw * W)))
+  const h = Math.max(1, Math.min(H - y0, Math.ceil(rect.nh * H)))
   const { data } = ctx.getImageData(x0, y0, w, h)
   const rs: number[] = []
   const gs: number[] = []
@@ -199,16 +203,23 @@ export function PageEditor({
 
   const pageAnnotations = annotations.filter((a) => a.pageId === page.id)
 
-  /** Erzeugt aus einem Textlauf eine Korrektur: Weissfläche (in der echten
-   *  Hintergrundfarbe) + neu setzbarer Text in der gematchten Originalschrift,
-   *  an exakt der Original-Grundlinie. */
-  async function createCorrection(run: TextRun) {
-    const font = matchFontName(run.fontName)
+  // Textläufe zu Absätzen gruppieren (gleicher Rand/Schrift/Zeilenabstand) —
+  // damit sich ein ganzer Absatz statt nur einer Einzelzeile korrigieren lässt.
+  const blocks = useMemo(
+    () => (runs ? groupTextRunsIntoBlocks(runs) : null),
+    [runs],
+  )
+
+  /** Erzeugt aus einem erkannten Absatz eine Korrektur: Weissfläche (in der
+   *  echten Hintergrundfarbe) + neu setzbares, mehrzeiliges Textfeld in der
+   *  gematchten Originalschrift, an exakt der Original-Grundlinie. */
+  async function createCorrection(block: TextBlock) {
+    const font = matchFontName(block.fontName)
     void ensurePreviewFont(font) // Vorschau-Schrift im Hintergrund laden
     let bg = '#ffffff'
     if (url) {
       try {
-        bg = await sampleBackground(url, run)
+        bg = await sampleBackground(url, block)
       } catch (e) {
         console.error('Hintergrund-Abtastung fehlgeschlagen:', e)
       }
@@ -217,15 +228,16 @@ export function PageEditor({
       id: newId(),
       kind: 'text',
       pageId: page.id,
-      nx: run.nx,
-      ny: run.ny,
-      fontSize: run.fontSize,
+      nx: block.nx,
+      ny: block.ny,
+      fontSize: block.fontSize,
       color: '#000000',
-      text: run.text,
-      origin: run.text,
-      baseNy: run.baseNy,
+      text: block.text,
+      origin: block.text,
+      baseNy: block.baseNy,
+      lineGap: block.lineGap,
       font,
-      box: { nw: run.nw, nh: run.nh, bg },
+      box: { nw: block.nw, nh: block.nh, bg },
     }
     setAutoFocusId(ann.id)
     dispatch({ type: 'ADD_ANNOTATION', annotation: ann })
@@ -371,24 +383,24 @@ export function PageEditor({
                 />
               )}
 
-              {/* „Text korrigieren": erkannte Textläufe als anklickbare Hotspots. */}
+              {/* „Text korrigieren": erkannte Absätze als anklickbare Hotspots. */}
               {tool === 'redigieren' &&
-                runs?.map((run, i) => (
+                blocks?.map((block, i) => (
                   <button
                     key={i}
                     type="button"
-                    title="Diesen Text korrigieren"
+                    title="Diesen Absatz korrigieren"
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => {
                       e.stopPropagation()
-                      createCorrection(run)
+                      createCorrection(block)
                     }}
                     className="absolute cursor-pointer rounded-[2px] border border-brand-400/40 bg-brand-400/5 transition-colors hover:border-brand-500 hover:bg-brand-400/25"
                     style={{
-                      left: run.nx * size.w - COVER_PAD_PX,
-                      top: run.ny * size.h - COVER_PAD_PX,
-                      width: run.nw * size.w + COVER_PAD_PX * 2,
-                      height: run.nh * size.h + COVER_PAD_PX * 2,
+                      left: block.nx * size.w - COVER_PAD_PX,
+                      top: block.ny * size.h - COVER_PAD_PX,
+                      width: block.nw * size.w + COVER_PAD_PX * 2,
+                      height: block.nh * size.h + COVER_PAD_PX * 2,
                     }}
                   />
                 ))}
@@ -413,7 +425,7 @@ export function PageEditor({
               {runsStatus === 'ready' && (
                 <>
                   <WandSparkles size={13} />
-                  Textstelle antippen zum Korrigieren
+                  Absatz antippen zum Korrigieren
                 </>
               )}
               {runsStatus === 'empty' &&
@@ -458,12 +470,15 @@ function TextAnnotationView({
   dispatch: Dispatch<Action>
 }) {
   const editRef = useRef<HTMLDivElement>(null)
+  const taRef = useRef<HTMLTextAreaElement>(null)
   const editable = tool === 'select'
   const [fontReady, setFontReady] = useState(false)
+  const isCorr = !!ann.box
 
-  // Text nur beim Mounten aus dem State setzen (danach steuert der Nutzer das DOM).
+  // Freitext: Inhalt nur beim Mounten aus dem State setzen (danach steuert der
+  // Nutzer das DOM). Korrekturen laufen über ein kontrolliertes <textarea>.
   useEffect(() => {
-    if (editRef.current && editRef.current.textContent !== ann.text) {
+    if (!isCorr && editRef.current && editRef.current.textContent !== ann.text) {
       editRef.current.textContent = ann.text
     }
     // Vorschau-Schrift laden; danach Neumessung der Grundlinie auslösen.
@@ -476,7 +491,12 @@ function TextAnnotationView({
   }, [])
 
   useEffect(() => {
-    if (autoFocus && editRef.current) {
+    if (!autoFocus) return
+    if (isCorr && taRef.current) {
+      taRef.current.focus()
+      const len = taRef.current.value.length
+      taRef.current.setSelectionRange(len, len)
+    } else if (!isCorr && editRef.current) {
       editRef.current.focus()
       const r = document.createRange()
       r.selectNodeContents(editRef.current)
@@ -485,9 +505,17 @@ function TextAnnotationView({
       sel?.removeAllRanges()
       sel?.addRange(r)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoFocus])
 
-  const isCorr = !!ann.box
+  // Textarea-Höhe an den Inhalt anpassen (kein natives Auto-Grow bei <textarea>).
+  useEffect(() => {
+    if (isCorr && taRef.current) {
+      taRef.current.style.height = '0px'
+      taRef.current.style.height = `${taRef.current.scrollHeight}px`
+    }
+  }, [isCorr, ann.text, fontReady])
+
   const fontSizePx = ann.fontSize * scale
   const fontFamily = ann.font
     ? previewFontStack(ann.font)
@@ -505,6 +533,11 @@ function TextAnnotationView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [isCorr, ann.font, fontSizePx, fontReady],
   )
+  // Absätze (≥2 Original-Zeilen) nutzen ihren echten Grundlinienabstand;
+  // eine einzelne Korrekturzeile bleibt beim bisherigen, engen Wert (1×
+  // Schriftgrösse) — exakt das bereits kalibrierte Verhalten, unverändert.
+  const lineHeight: number | string =
+    ann.lineGap != null ? `${ann.lineGap * cssH}px` : 1
 
   return (
     <div
@@ -566,40 +599,86 @@ function TextAnnotationView({
         </div>
       )}
 
-      <div
-        ref={editRef}
-        contentEditable={editable}
-        suppressContentEditableWarning
-        spellCheck={false}
-        onInput={(e) =>
-          dispatch({
-            type: 'UPDATE_ANNOTATION',
-            id: ann.id,
-            patch: { text: e.currentTarget.textContent ?? '' },
-          })
-        }
-        onBlur={(e) => {
-          if (!(e.currentTarget.textContent ?? '').trim()) {
-            dispatch({ type: 'DELETE_ANNOTATION', id: ann.id })
+      {ann.box ? (
+        // Korrektur (einzeilig oder ganzer Absatz): <textarea> — nativ mehrzeilig
+        // und wrappt an der Box-Breite, exakt wie der Export (wrapParagraph).
+        <textarea
+          ref={taRef}
+          value={ann.text}
+          readOnly={!editable}
+          spellCheck={false}
+          onChange={(e) =>
+            dispatch({
+              type: 'UPDATE_ANNOTATION',
+              id: ann.id,
+              patch: { text: e.target.value },
+            })
           }
-        }}
-        style={{
-          position: 'absolute',
-          left: 0,
-          top: textTop,
-          fontSize: fontSizePx,
-          color: ann.color,
-          lineHeight: isCorr ? 1 : 1.15,
-          whiteSpace: 'pre',
-          fontFamily,
-          fontWeight: ann.font && ann.font.weight >= 600 ? 700 : 400,
-          fontStyle: ann.font?.italic ? 'italic' : 'normal',
-        }}
-        className={cn(
-          'min-w-[6px] cursor-text px-[1px] outline-none',
-          selected && 'rounded-[3px] ring-2 ring-brand-400/70',
-        )}
-      />
+          onBlur={(e) => {
+            if (!e.target.value.trim()) {
+              dispatch({ type: 'DELETE_ANNOTATION', id: ann.id })
+            }
+          }}
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: textTop,
+            width: ann.box.nw * cssW,
+            fontSize: fontSizePx,
+            color: ann.color,
+            lineHeight,
+            fontFamily,
+            fontWeight: ann.font && ann.font.weight >= 600 ? 700 : 400,
+            fontStyle: ann.font?.italic ? 'italic' : 'normal',
+            resize: 'none',
+            overflow: 'hidden',
+            border: 'none',
+            outline: 'none',
+            background: 'transparent',
+            padding: 0,
+            margin: 0,
+          }}
+          className={cn(
+            'block cursor-text',
+            selected && 'rounded-[3px] ring-2 ring-brand-400/70',
+          )}
+        />
+      ) : (
+        <div
+          ref={editRef}
+          contentEditable={editable}
+          suppressContentEditableWarning
+          spellCheck={false}
+          onInput={(e) =>
+            dispatch({
+              type: 'UPDATE_ANNOTATION',
+              id: ann.id,
+              patch: { text: e.currentTarget.textContent ?? '' },
+            })
+          }
+          onBlur={(e) => {
+            if (!(e.currentTarget.textContent ?? '').trim()) {
+              dispatch({ type: 'DELETE_ANNOTATION', id: ann.id })
+            }
+          }}
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: textTop,
+            fontSize: fontSizePx,
+            color: ann.color,
+            lineHeight: 1.15,
+            whiteSpace: 'pre',
+            fontFamily,
+            fontWeight: ann.font && ann.font.weight >= 600 ? 700 : 400,
+            fontStyle: ann.font?.italic ? 'italic' : 'normal',
+          }}
+          className={cn(
+            'min-w-[6px] cursor-text px-[1px] outline-none',
+            selected && 'rounded-[3px] ring-2 ring-brand-400/70',
+          )}
+        />
+      )}
     </div>
   )
 }

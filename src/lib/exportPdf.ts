@@ -36,6 +36,30 @@ function standardEnum(
   return StandardFonts.Helvetica
 }
 
+/** Einfacher Greedy-Wortumbruch (keine Silbentrennung — passend zu „kein Reflow"). */
+function wrapParagraph(
+  text: string,
+  font: PDFFont,
+  size: number,
+  maxWidth: number,
+): string[] {
+  if (!(maxWidth > 0)) return [text]
+  const words = text.split(' ')
+  const lines: string[] = []
+  let line = ''
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word
+    if (line && font.widthOfTextAtSize(candidate, size) > maxWidth) {
+      lines.push(line)
+      line = word
+    } else {
+      line = candidate
+    }
+  }
+  if (line) lines.push(line)
+  return lines
+}
+
 function hexToRgb(hex: string) {
   const h = hex.replace('#', '')
   const full =
@@ -144,8 +168,13 @@ export async function assemblePdf(
         }
         const f = await getFont(a.font)
         const size = a.fontSize
-        const lineHeight = size * 1.15
-        const lines = a.text.split('\n')
+        const lineHeight = a.lineGap != null ? a.lineGap * H : size * 1.15
+        // Absatz-Korrekturen (mit Box) an der Box-Breite umbrechen — derselbe
+        // Umbruch wie im Editor-Textfeld (natives Wrapping), damit WYSIWYG stimmt.
+        const maxWidth = a.box ? a.box.nw * W : Infinity
+        const lines = a.text
+          .split('\n')
+          .flatMap((para) => (a.box ? wrapParagraph(para, f, size, maxWidth) : [para]))
         // Korrektur: exakte Original-Grundlinie. Freies Textfeld: Oberkante→Ascent.
         const firstBaseline =
           a.baseNy != null ? H * (1 - a.baseNy) : H * (1 - a.ny) - size * 0.8

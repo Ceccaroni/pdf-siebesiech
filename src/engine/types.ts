@@ -64,6 +64,9 @@ export interface TextAnnotation extends BaseAnnotation {
   baseNy?: number
   /** Original-Text (für „zurücksetzen"/Referenz). */
   origin?: string
+  /** Grundlinienabstand für Mehrzeiler (normalisiert wie `ny`); nur bei aus
+   *  mehreren Original-Zeilen zusammengeführten Absätzen gesetzt. Fehlt → size*1.15. */
+  lineGap?: number
 }
 
 /**
