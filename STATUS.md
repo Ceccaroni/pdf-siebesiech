@@ -1,73 +1,60 @@
 # STATUS — PDF-Siebesiech
 
-_Aktualisiert: 2026-08-12_
+_Aktualisiert: 2026-08-13_
 
-## 🚀 LIVE (Rollout-fähig)
-- **App online:** https://ceccaroni.github.io/pdf-siebesiech/ (HTTPS, verifiziert 200).
-- **Deploy:** GitHub Pages via Actions (`.github/workflows/deploy.yml`) — jeder Push
-  auf `main` geht automatisch live. Repo: `Ceccaroni/pdf-siebesiech` (public).
-- **Für die Schulklasse (Merge/Split) einsatzbereit.** Schülermaterial in `unterricht/`:
-  `index.html` (Zugang/„so öffnest du's") + `anleitung.html` (Bedienung, 2 Aufgaben) —
-  self-contained, per Doppelklick öffen- und druckbar (auch von USB).
-- _Empfehlung morgen früh:_ 5 Min `npm run preview` als visueller Smoke-Test von
-  Öffnen → Merge → Export → „Nur Auswahl“.
+## 🚀 LIVE
+- **App online:** https://ceccaroni.github.io/pdf-siebesiech/ (HTTPS, verifiziert).
+- **Deploy:** GitHub Pages via Actions — jeder Push auf `main` geht automatisch live.
+  Repo: `Ceccaroni/pdf-siebesiech` (public).
+- Erster Schuleinsatz (Merge/Split) lief; ein Live-Bug wurde während der Stunde
+  gemeldet und noch am selben Tag behoben + deployt (siehe ARCHIV.md, 2026-08-13
+  „Fix: gescannte Dokumente").
 
 ## Stand
-Phase 1, 2a, 2b **und 2c fertig & lauffähig** (Build grün, Lint sauber).
-Neu diese Session: **Schul-Logo** im „Über"-Dialog (`public/schule-huttwil-logo.svg`)
-und **„Text korrigieren"** — bestehenden PDF-Text anklicken und in der
-**Originalschrift** an derselben Stelle neu setzen (nahtlos, inkl. Echtfarben-
-Abtastung der Weissfläche). Details siehe ARCHIV.md.
+Phase 1, 2a, 2b, 2c fertig & live. **„Text korrigieren" gruppiert jetzt Absätze**
+statt nur Einzelzeilen (`src/engine/textBlocks.ts`, mehrzeiliges Textfeld,
+Wortumbruch spiegelt sich 1:1 im Export). **Gescannte Dokumente (JBIG2, z.B.
+Xerox-Multifunktionsdrucker) rendern jetzt korrekt** in der Vorschau (WASM-
+Decoder-Fix). Details zu allem: ARCHIV.md.
 
 **Läuft:** Öffnen (Klick / Drop) · Miniaturleiste (DnD, Mehrfachauswahl, drehen /
-löschen / duplizieren) · **Multi-Dokument** (Merge, Herkunftsfarben) · Zoom ·
-Editor (Text · Weissfläche · **Text korrigieren in Originalschrift**) · Export
-**+ Split** · **PWA/Offline** · „Über"-Dialog mit Logo.
+löschen / duplizieren) · Multi-Dokument (Merge, Herkunftsfarben) · Zoom ·
+Editor (Text · Weissfläche · Text korrigieren **in Absätzen**, Originalschrift)
+· Export + Split · PWA/Offline · „Über"-Dialog · Schülermaterial (`unterricht/`).
 
 ## Nächste Schritte
-1. **Browser-Gegencheck der Vorschau** (offen aus 2c, jetzt erweitert): Export ist
-   end-to-end validiert (Node), die **Editor-Vorschau** wurde grundlinien-genau
-   umgebaut, aber noch nicht im echten Browser gegengeprüft. `npm run dev` →
-   Motischreiben → Stift → Datumszeile → sitzt es deckungsgleich?
-   **Neu (2026-08-13): Absatz-Korrektur.** „Text korrigieren" gruppiert jetzt
-   ganze Absätze statt Einzelzeilen (`src/engine/textBlocks.ts`, geometrische
-   Heuristik: gleicher Rand/Schrift/Zeilenabstand). Editier-Feld ist neu ein
-   `<textarea>` (nativ mehrzeilig, wrappt an der Original-Box-Breite); Export
-   wrappt mit derselben Logik (`wrapParagraph` in `exportPdf.ts`, pdf-lib-
-   Textmetrik) — WYSIWYG zwischen Vorschau und Export. **Headless verifiziert:**
-   Gruppierungs-Heuristik mit synthetischen Zeilen (Absätze korrekt getrennt/
-   zusammengeführt), Wortumbruch mit echten pdf-lib-Metriken, voller Rundweg
-   Annotation→`assemblePdf`→`pdftotext` (Absatz vollständig, korrekt umgebrochen).
-   **Noch nicht geprüft:** visuelles Editor-Erlebnis (Hotspot-Klick, Textarea-
-   Auto-Höhe, Grundlinien-Optik bei echten mehrzeiligen Absätzen) — Teil des
-   obigen Browser-Gegenchecks. Bekannte Grenzen der Heuristik: erkennt keine
-   zentrierten Absätze und keinen Erstzeilen-Einzug (bleiben Einzeilen-Blöcke).
+1. **Browser-Gegencheck der Vorschau** (weiterhin offen): Export ist end-to-end
+   validiert (Node/Playwright), aber das **visuelle Editor-Erlebnis** wurde nie
+   live im eigenen Dev-Server geprüft — insbesondere die neue Absatz-Korrektur
+   (Textarea-Auto-Höhe, Grundlinien-Optik bei echten Mehrzeilern) und generell
+   Motischreiben/Stift/Datumszeile. `npm run dev` → einmal alle Werkzeuge durchklicken.
 2. **T-001 — Echte Redaktion** (vom Nutzer gewünscht): Originaltext wirklich aus
-   dem Content-Stream entfernen, nicht nur überdecken.
+   dem Content-Stream entfernen, nicht nur überdecken. Spike zeigt: Option A ist
+   machbar (`spikes/t-001/BEFUND.md`, 14/14 Verifikationen grün, auch der
+   Subset/CID-Fall). Offene Risiken vor Integration: `TJ`-Zeilen-Granularität
+   (ganze Zeile in einem Operator) + Form-XObjects. Nächster Schritt: an echten
+   Word-/Canva-/LibreOffice-Exporten gegentesten.
    → `docs/tickets/T-001-echte-redaktion.md`.
-   **Spike gefahren (2026-08-12): Option A ist machbar** — `spikes/t-001/` + Befund
-   in `spikes/t-001/BEFUND.md`, 14/14 Verifikations-Assertions grün (auch der
-   Subset/CID-Fall via Positions-Match). Offene Risiken vor Integration:
-   `TJ`-Zeilen-Granularität (ganze Zeile in einem Operator) + Form-XObjects.
-   Nächster Schritt: an echten Word-/Canva-/LibreOffice-Exporten gegentesten.
 3. **Formularfelder** ausfüllen (AcroForm, pdf-lib `getForm()`) — bewusst *später*.
 4. **Single-File-Build**: eine `index.html` für USB / `file://` ohne Server
-   (braucht Inlinen des pdf.js-Workers).
+   (braucht Inlinen des pdf.js-Workers **und** der WASM-Assets).
 
 ## Bekannte Grenzen
 - **„Text korrigieren"** nur auf echten Text (keine Scans) und **0°-Seiten**;
-  Ersatzschrift bei nicht gebündelter Familie → Badge „angenähert"; kein Reflow.
+  Ersatzschrift bei nicht gebündelter Familie → Badge „angenähert"; kein
+  seitenübergreifender Reflow. Absatzerkennung erkennt keine zentrierten
+  Absätze und keinen Erstzeilen-Einzug (bleiben Einzeilen-Blöcke).
 - **Weissfläche/Korrektur überdeckt nur optisch** — Originaltext bleibt im
   Text-Layer auslesbar (→ Ticket T-001).
 - **Service-Worker brauchen HTTPS** (oder localhost). GitHub Pages ✓. Reiner
   HTTP-Schulserver ⇒ SW inaktiv, App nur online (→ dann Single-File-Build).
+- **Offline-Persistenz hängt an der Gerätepolitik der Schule**: setzen die
+  Acer-Geräte das Browserprofil bei Logout/Neustart zurück, ist der Cache weg —
+  unabhängig von unserer App. Noch nicht an einem echten Schulgerät getestet.
 - Ein Font (Helvetica) für **freien** Text; Text-Baseline WYSIWYG-nah.
 
 ## Offen / optional
-- ~~Git initialisieren~~ **erledigt** — Repo `Ceccaroni/pdf-siebesiech` (main).
-- ~~Verteilung GitHub Pages~~ **erledigt & live** (s. oben). Schul-Webserver bei Bedarf
-  zusätzlich möglich (`dist/`), **HTTPS** für Offline/PWA.
-- Optional: Schülermaterial (`unterricht/`) zusätzlich online stellen — dazu Dateien
-  nach `public/` verschieben, dann per `.../pdf-siebesiech/anleitung.html` erreichbar.
+- Schülermaterial (`unterricht/`) zusätzlich online stellen — dazu Dateien nach
+  `public/` verschieben, dann per `.../pdf-siebesiech/anleitung.html` erreichbar.
 - Gebündelte Fonts (`public/fonts/`, ~8.5 MB) sind lazy-geladen → keine Grundlast;
   bei Bedarf weitere Familien ergänzen.

@@ -60,3 +60,57 @@ durch bewussten Verzicht (kein Reflow) + Mitliefern echter Schriften.
   (Datum nahtlos, kein Kasten) am gerenderten Export bestätigt. Build grün, Lint sauber.
 - **Offen** → Ticket `docs/tickets/T-001-echte-redaktion.md` (Originaltext wirklich
   aus dem Content-Stream entfernen, nicht nur überdecken).
+
+## 2026-08-12 — Rollout: Git, GitHub Pages, Schülermaterial
+- **Git initialisiert** + Repo `Ceccaroni/pdf-siebesiech` (public) erstellt, gepusht.
+- **GitHub Pages Live-Deploy** via Actions (`.github/workflows/deploy.yml`):
+  Push auf `main` → Build → Pages, automatisch. Live-URL verifiziert (curl,
+  HTTP 200, JS-Bundle + Worker laden korrekt).
+- **Schülermaterial** (`unterricht/`): `index.html` (Zugang — Link + Adresse zum
+  Abtippen, bewusst **ohne QR-Code**, da Zielgeräte keine Kamera haben) und
+  `anleitung.html` (Bedienung in einfacher Sprache, 9. Klasse Real, Schweizer
+  «ss») — beide self-contained HTML, per Doppelklick offen- und druckbar.
+- T-001-Spike (Content-Stream-Chirurgie) durchgeführt und dokumentiert
+  (`spikes/t-001/`, siehe Phase 2c oben) — 14/14 Verifikationen grün.
+
+## 2026-08-13 — „Text korrigieren": Absätze statt Einzelzeilen
+Bisher liess sich pro Klick nur eine einzelne Zeile korrigieren. Neu: ganze
+Absätze in einem Rutsch.
+- **Blockerkennung** (`src/engine/textBlocks.ts`, neu): geometrische Heuristik
+  gruppiert `TextRun[]` zu Zeilen (Baseline-Nähe) und Zeilen zu Absätzen
+  (gleicher linker Rand/Schrift/Grösse, normaler Zeilenabstand — grosse Lücke
+  = neuer Absatz). Bekannte Grenze: erkennt weder zentrierte Absätze noch
+  Erstzeilen-Einzug (bleiben Einzeilen-Blöcke).
+- **Editier-Feld**: Korrekturen (mit Weissfläche) laufen jetzt über ein echtes
+  `<textarea>` statt `contentEditable` — nativ mehrzeilig, wrappt an der
+  Original-Box-Breite. Freier Text (ohne Box) unverändert `contentEditable`.
+- **Export** (`wrapParagraph` in `exportPdf.ts`): identischer Greedy-Wortumbruch
+  mit pdf-lib-Textmetrik an derselben Box-Breite → WYSIWYG zwischen Vorschau
+  und Export. Zeilenabstand nutzt bei Mehrzeilern den echten Original-Abstand
+  (`TextAnnotation.lineGap`, normalisiert), sonst wie bisher `size*1.15`.
+- **Verifiziert (headless):** Blockerkennung an synthetischen Zeilen (Absätze
+  korrekt getrennt/zusammengeführt), Wortumbruch mit echten pdf-lib-Metriken,
+  voller Rundweg Annotation→`assemblePdf`→`pdftotext`. **Noch offen:** visueller
+  Browser-Check (Hotspot-Klick, Textarea-Auto-Höhe, Grundlinien-Optik) — siehe
+  STATUS.md Nächste Schritte.
+
+## 2026-08-13 — Fix: gescannte Dokumente (JBIG2) leer in der Vorschau
+**Live-Bug-Report** aus dem Schuleinsatz: Scans von Multifunktionsdruckern
+(Xerox) zeigten in der Editor-Vorschau fast nichts (nur vereinzelte Linien),
+Export war unauffällig korrekt.
+- **Ursache gefunden:** pdf.js 6.x braucht für seinen WASM-JBIG2-Decoder einen
+  expliziten `wasmUrl`-Parameter; ohne ihn scheitert die Initialisierung still,
+  JBIG2-Bildobjekte werden beim Rendern komplett ignoriert (`getOperatorList -
+  ignoring XObject`). Die App hatte `wasmUrl` nie gesetzt, die WASM-Dateien
+  waren weder gebaut noch deployt (404 live).
+- **Diagnose-Weg:** `pdfimages -list` zeigte 8 JBIG2-Stencils (Xerox' „Mixed
+  Raster Content"-Scanmodus: JPEG-Hintergrund + JBIG2-Textmasken) identisch in
+  Original und Export → Export unverdächtig (`copyPages` kopiert unverändert).
+  Poppler (`pdftoppm`) rendert die Original-Datei einwandfrei → Datei intakt,
+  Fehler isoliert in pdf.js. Reproduziert mit **echtem pdfjs-dist 6.2.108** in
+  Node (`@napi-rs/canvas`) und final mit **echtem Chromium** (Playwright,
+  lokaler Webroot mit den echten Projekt-Dateien) — exakt dieselbe Fehlermeldung
+  wie live, dann mit Fix: **0 Warnungen**, Render deckungsgleich mit Poppler.
+- **Fix:** `public/wasm/*.wasm` (4 Dateien, ~900 KB, lazy geladen wie die
+  Zusatzschriften) + `wasmUrl` in `getDocument()` (`src/engine/pdfEngine.ts`).
+  Live deployt und verifiziert (`wasm/jbig2.wasm` liefert HTTP 200).
