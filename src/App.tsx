@@ -9,6 +9,7 @@ import { useStore } from './state/store'
 import { importFiles } from './state/importFiles'
 import { useFileDrop } from './hooks/useFileDrop'
 import { assemblePdf, downloadBytes } from './lib/exportPdf'
+import { setSafeToReload } from './lib/appUpdate'
 
 function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v))
@@ -102,6 +103,12 @@ export default function App() {
   )
 
   const hasPages = pages.length > 0
+
+  // PWA-Auto-Update: ein wartendes App-Update erst einspielen (Reload), wenn kein
+  // Dokument offen ist — sonst ginge die im Speicher gehaltene Arbeit verloren.
+  useEffect(() => {
+    setSafeToReload(!hasPages)
+  }, [hasPages])
 
   return (
     <div className="flex h-screen flex-col">
