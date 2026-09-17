@@ -94,6 +94,24 @@ Absätze in einem Rutsch.
   Browser-Check (Hotspot-Klick, Textarea-Auto-Höhe, Grundlinien-Optik) — siehe
   STATUS.md Nächste Schritte.
 
+## 2026-09-03 — Auto-Update: neue App-Version automatisch laden
+PWA-Stolperstein behoben: Bei einem neuen Build tauscht der Service-Worker per
+`skipWaiting`/`clientsClaim` nur den Worker aus — die bereits geladene Seite lief mit
+dem **alten** Bundle weiter, bis man manuell neu lud.
+- **Neu:** `src/lib/appUpdate.ts` (`initAutoUpdate` in `main.tsx`, `setSafeToReload`
+  in `App.tsx`) lädt genau **einmal** neu, sobald ein neuer Worker übernimmt (echter
+  `controllerchange`, **nicht** die SW-Erst-Übernahme beim unkontrollierten
+  Erstbesuch/Hard-Reload — sonst würde ein Update derselben Sitzung verschluckt).
+  **Aufgeschoben**, solange ein Dokument offen ist (im Speicher gehaltene PDFs/
+  Anmerkungen → kein Datenverlust); nach dem Schliessen wird der Reload nachgeholt.
+- **Verifiziert (Playwright, echtes Update simuliert:** Version-Bump → Rebuild →
+  `registration.update()`): Erstbesuch kein Reload · Update im Leerzustand genau ein
+  Reload · Update bei offenem Dokument aufgeschoben und nach Schliessen nachgeholt.
+  Build grün, Lint sauber. Commit `9bbdaa5`, gepusht, **live** (Build+Deploy grün).
+- **Hinweis:** greift automatisch erst ab dem *übernächsten* Update — bestehende
+  Browser brauchen für dieses eine noch einen manuellen Reload (der alte Code kennt
+  den Handler nicht).
+
 ## 2026-08-13 — Fix: gescannte Dokumente (JBIG2) leer in der Vorschau
 **Live-Bug-Report** aus dem Schuleinsatz: Scans von Multifunktionsdruckern
 (Xerox) zeigten in der Editor-Vorschau fast nichts (nur vereinzelte Linien),
