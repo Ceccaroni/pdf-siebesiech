@@ -1,15 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type React from 'react'
 import type { Dispatch } from 'react'
-import { GripVertical, RotateCcw, Loader2, WandSparkles } from 'lucide-react'
+import {
+  GripVertical,
+  RotateCcw,
+  Loader2,
+  WandSparkles,
+  FormInput,
+} from 'lucide-react'
 import type {
+  FormFieldInfo,
   PageDescriptor,
   RectAnnotation,
   TextAnnotation,
   TextRun,
   Tool,
 } from '../engine/types'
-import { getPageTextRuns, renderPageImage } from '../engine/pdfEngine'
+import { fieldKey } from '../engine/types'
+import {
+  getPageFormFields,
+  getPageTextRuns,
+  renderPageImage,
+} from '../engine/pdfEngine'
 import { groupTextRunsIntoBlocks, type TextBlock } from '../engine/textBlocks'
 import {
   baselineFromTopPx,
@@ -96,6 +108,42 @@ function beginDrag(
   window.addEventListener('pointerup', up)
 }
 
+/**
+ * Wie beginDrag, aber startet erst nach einer kleinen Mindestbewegung (Schwelle).
+ * So bleibt ein reiner Klick auf ein Textfeld ein Klick (Cursor setzen / tippen),
+ * und erst echtes Ziehen verschiebt die Box. `onStart` feuert einmal, sobald die
+ * Schwelle überschritten ist. Der pointerdown-Default (Fokus/Cursor) bleibt
+ * unangetastet — nur ab dem echten Ziehen wird preventDefault aufgerufen.
+ */
+function beginThresholdDrag(
+  e: React.PointerEvent,
+  onMove: (dx: number, dy: number) => void,
+  opts?: { threshold?: number; onStart?: () => void; onEnd?: () => void },
+) {
+  const sx = e.clientX
+  const sy = e.clientY
+  const threshold = opts?.threshold ?? 4
+  let started = false
+  const move = (ev: PointerEvent) => {
+    const dx = ev.clientX - sx
+    const dy = ev.clientY - sy
+    if (!started) {
+      if (Math.hypot(dx, dy) < threshold) return
+      started = true
+      opts?.onStart?.()
+    }
+    ev.preventDefault()
+    onMove(dx, dy)
+  }
+  const up = () => {
+    window.removeEventListener('pointermove', move)
+    window.removeEventListener('pointerup', up)
+    if (started) opts?.onEnd?.()
+  }
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', up)
+}
+
 interface Size {
   w: number
   h: number
@@ -114,7 +162,7 @@ export function PageEditor({
   zoom: number
 }) {
   const { state, dispatch } = useStore()
-  const { tool, annotations, selectedAnnotationId } = state
+  const { tool, annotations, selectedAnnotationId, formFills } = state
   const editable = page.rotation === 0
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -130,6 +178,11 @@ export function PageEditor({
   // Textläufe aus dem Quell-PDF (fürs Werkzeug „Text korrigieren"), lazy geladen.
   const [runs, setRuns] = useState<TextRun[] | null>(null)
   const [runsStatus, setRunsStatus] = useState<
+    'idle' | 'loading' | 'ready' | 'empty' | 'error'
+  >('idle')
+  // Eingebettete Formularfelder (fürs Werkzeug „Formular"), lazy geladen.
+  const [fields, setFields] = useState<FormFieldInfo[] | null>(null)
+  const [fieldsStatus, setFieldsStatus] = useState<
     'idle' | 'loading' | 'ready' | 'empty' | 'error'
   >('idle')
 
@@ -174,10 +227,12 @@ export function PageEditor({
     }
   }, [])
 
-  // Textläufe zurücksetzen, sobald sich die Seite ändert.
+  // Textläufe + Formularfelder zurücksetzen, sobald sich die Seite ändert.
   useEffect(() => {
     setRuns(null)
     setRunsStatus('idle')
+    setFields(null)
+    setFieldsStatus('idle')
   }, [page.id])
 
   // Im Modus „Text korrigieren" die Textläufe der Seite einmalig laden.
@@ -200,6 +255,27 @@ export function PageEditor({
       cancelled = true
     }
   }, [tool, editable, runs, page.docId, page.sourceIndex])
+
+  // Im Modus „Formular" die eingebetteten Felder der Seite einmalig laden.
+  useEffect(() => {
+    if (tool !== 'formular' || !editable || fields !== null) return
+    let cancelled = false
+    setFieldsStatus('loading')
+    getPageFormFields(page.docId, page.sourceIndex)
+      .then((f) => {
+        if (cancelled) return
+        setFields(f)
+        setFieldsStatus(f.length ? 'ready' : 'empty')
+      })
+      .catch((e) => {
+        if (cancelled) return
+        console.error('Formularfelder konnten nicht gelesen werden:', e)
+        setFieldsStatus('error')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [tool, editable, fields, page.docId, page.sourceIndex])
 
   const pageAnnotations = annotations.filter((a) => a.pageId === page.id)
 
@@ -262,8 +338,11 @@ export function PageEditor({
         text: '',
       }
       setAutoFocusId(ann.id)
-      dispatch({ type: 'ADD_ANNOTATION', annotation: ann })
+      // Reihenfolge wichtig: erst aufs Auswahl-Werkzeug (SET_TOOL leert die
+      // Auswahl), dann hinzufügen — ADD_ANNOTATION selektiert die neue Box,
+      // damit Rahmen + Verschiebe-Griff sofort sichtbar sind.
       dispatch({ type: 'SET_TOOL', tool: 'select' })
+      dispatch({ type: 'ADD_ANNOTATION', annotation: ann })
     } else if (tool === 'whiteout') {
       const startNx = nx
       const startNy = ny
@@ -404,6 +483,20 @@ export function PageEditor({
                     }}
                   />
                 ))}
+
+              {/* „Formular": eingebettete Felder als ausfüllbare Eingaben. */}
+              {tool === 'formular' &&
+                fields?.map((f, i) => (
+                  <FormFieldView
+                    key={`${f.name}-${i}`}
+                    field={f}
+                    docId={page.docId}
+                    cssW={size.w}
+                    cssH={size.h}
+                    value={formFills[fieldKey(page.docId, f.name)]}
+                    dispatch={dispatch}
+                  />
+                ))}
             </div>
           )}
 
@@ -431,6 +524,27 @@ export function PageEditor({
               {runsStatus === 'empty' &&
                 'Kein bearbeitbarer Text auf dieser Seite (evtl. gescannt)'}
               {runsStatus === 'error' && 'Text konnte nicht gelesen werden'}
+            </div>
+          )}
+
+          {editable && tool === 'formular' && (
+            <div className="pointer-events-none absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-1.5 rounded-lg bg-ink-950/85 px-3 py-1.5 text-xs text-white shadow-md">
+              {(fieldsStatus === 'loading' || fieldsStatus === 'idle') && (
+                <>
+                  <Loader2 size={13} className="animate-spin" />
+                  Formular wird analysiert …
+                </>
+              )}
+              {fieldsStatus === 'ready' && (
+                <>
+                  <FormInput size={13} />
+                  Felder ausfüllen, dann exportieren
+                </>
+              )}
+              {fieldsStatus === 'empty' &&
+                'Keine ausfüllbaren Felder auf dieser Seite'}
+              {fieldsStatus === 'error' &&
+                'Formularfelder konnten nicht gelesen werden'}
             </div>
           )}
         </div>
@@ -471,6 +585,7 @@ function TextAnnotationView({
 }) {
   const editRef = useRef<HTMLDivElement>(null)
   const taRef = useRef<HTMLTextAreaElement>(null)
+  const draggingRef = useRef(false)
   const editable = tool === 'select'
   const [fontReady, setFontReady] = useState(false)
   const isCorr = !!ann.box
@@ -492,19 +607,26 @@ function TextAnnotationView({
 
   useEffect(() => {
     if (!autoFocus) return
-    if (isCorr && taRef.current) {
-      taRef.current.focus()
-      const len = taRef.current.value.length
-      taRef.current.setSelectionRange(len, len)
-    } else if (!isCorr && editRef.current) {
-      editRef.current.focus()
-      const r = document.createRange()
-      r.selectNodeContents(editRef.current)
-      r.collapse(false)
-      const sel = window.getSelection()
-      sel?.removeAllRanges()
-      sel?.addRange(r)
-    }
+    // Fokus erst nach Abschluss der Klickgeste setzen (nächster Frame): sonst
+    // überschreibt die Browser-Standard-Fokusbehandlung des Klicks aufs Overlay
+    // unseren programmatischen Fokus sofort wieder (Blur → leeres Feld würde
+    // sich selbst löschen). rAF verschiebt den Fokus hinter pointerup/click.
+    const raf = requestAnimationFrame(() => {
+      if (isCorr && taRef.current) {
+        taRef.current.focus()
+        const len = taRef.current.value.length
+        taRef.current.setSelectionRange(len, len)
+      } else if (!isCorr && editRef.current) {
+        editRef.current.focus()
+        const r = document.createRange()
+        r.selectNodeContents(editRef.current)
+        r.collapse(false)
+        const sel = window.getSelection()
+        sel?.removeAllRanges()
+        sel?.addRange(r)
+      }
+    })
+    return () => cancelAnimationFrame(raf)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoFocus])
 
@@ -546,6 +668,37 @@ function TextAnnotationView({
       onPointerDown={(e) => {
         e.stopPropagation()
         dispatch({ type: 'SELECT_ANNOTATION', id: ann.id })
+        if (!editable) return
+        // Körper ziehbar: Klick = Cursor setzen/tippen, Ziehen = verschieben.
+        const sx = ann.nx
+        const sy = ann.ny
+        const sb = ann.baseNy
+        beginThresholdDrag(
+          e,
+          (dx, dy) => {
+            const nx = clamp01(sx + dx / cssW)
+            const ny = clamp01(sy + dy / cssH)
+            dispatch({
+              type: 'UPDATE_ANNOTATION',
+              id: ann.id,
+              // Korrektur: Grundlinie mitführen (Text + Weissfläche zusammen).
+              patch:
+                sb != null
+                  ? { nx, ny, baseNy: clamp01(sb + dy / cssH) }
+                  : { nx, ny },
+            })
+          },
+          {
+            onStart: () => {
+              draggingRef.current = true
+              // Markierung aufheben, damit Ziehen keinen Text selektiert.
+              window.getSelection()?.removeAllRanges()
+            },
+            onEnd: () => {
+              draggingRef.current = false
+            },
+          },
+        )
       }}
     >
       {/* Weissfläche (echte Hintergrundfarbe) über dem Original — hinter dem Text. */}
@@ -564,7 +717,7 @@ function TextAnnotationView({
 
       {selected && editable && (
         <div
-          title="Verschieben"
+          title="Zum Verschieben ziehen"
           onPointerDown={(e) => {
             const sx = ann.nx
             const sy = ann.ny
@@ -583,9 +736,10 @@ function TextAnnotationView({
               })
             })
           }}
-          className="absolute -top-[18px] left-0 flex h-4 cursor-move items-center rounded bg-brand-600 px-1 text-white"
+          className="absolute -top-[23px] left-0 flex h-[19px] cursor-move select-none items-center gap-1 whitespace-nowrap rounded bg-brand-600 px-1.5 text-[11px] font-medium text-white shadow"
         >
-          <GripVertical size={11} />
+          <GripVertical size={12} />
+          Verschieben
         </div>
       )}
 
@@ -615,6 +769,7 @@ function TextAnnotationView({
             })
           }
           onBlur={(e) => {
+            if (draggingRef.current) return
             if (!e.target.value.trim()) {
               dispatch({ type: 'DELETE_ANNOTATION', id: ann.id })
             }
@@ -657,6 +812,9 @@ function TextAnnotationView({
             })
           }
           onBlur={(e) => {
+            // Nicht löschen, während die Box gezogen wird (ein Drag kann den
+            // Fokus kurz entziehen) — sonst verschwände eine noch leere Box.
+            if (draggingRef.current) return
             if (!(e.currentTarget.textContent ?? '').trim()) {
               dispatch({ type: 'DELETE_ANNOTATION', id: ann.id })
             }
@@ -754,5 +912,100 @@ function WhiteoutAnnotationView({
         />
       )}
     </div>
+  )
+}
+
+/**
+ * Ein eingebettetes Formularfeld als ausfüllbare Eingabe (Overlay über der
+ * gerenderten Seite). Textfeld → `<input>`/`<textarea>`, Checkbox → Haken.
+ * Der Wert landet in `formFills` (Schlüssel `docId::name`); der Export füllt
+ * das echte PDF-Feld daraus und flacht es ein (pdf-lib). Schreibgeschützte
+ * Felder werden nur angezeigt.
+ */
+function FormFieldView({
+  field,
+  docId,
+  cssW,
+  cssH,
+  value,
+  dispatch,
+}: {
+  field: FormFieldInfo
+  docId: string
+  cssW: number
+  cssH: number
+  value: string | boolean | undefined
+  dispatch: Dispatch<Action>
+}) {
+  const key = fieldKey(docId, field.name)
+  const left = field.nx * cssW
+  const top = field.ny * cssH
+  const width = field.nw * cssW
+  const height = field.nh * cssH
+
+  if (field.type === 'checkbox') {
+    const checked = typeof value === 'boolean' ? value : (field.value as boolean)
+    return (
+      // Deckender Hintergrund: überdeckt den evtl. bereits ins Seitenbild
+      // gerenderten Original-Feldzustand (sonst Doppelbild).
+      <div
+        className="absolute flex items-center justify-center bg-white"
+        style={{ left, top, width, height }}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={field.readOnly}
+          title={field.name}
+          onChange={(e) =>
+            dispatch({ type: 'SET_FORM_FILL', key, value: e.target.checked })
+          }
+          className="h-full w-full cursor-pointer accent-brand-600 disabled:cursor-default"
+          style={{ margin: 0 }}
+        />
+      </div>
+    )
+  }
+
+  const text = typeof value === 'string' ? value : (field.value as string)
+  // Schriftgrösse grob an die Feldhöhe koppeln (einzeilig), gedeckelt.
+  const fontSize = Math.max(9, Math.min(height * 0.7, 18))
+  const common = {
+    value: text,
+    readOnly: field.readOnly,
+    spellCheck: false,
+    title: field.name,
+    onChange: (
+      e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+    ) => dispatch({ type: 'SET_FORM_FILL', key, value: e.target.value }),
+    onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
+    style: {
+      position: 'absolute' as const,
+      left,
+      top,
+      width,
+      height,
+      fontSize,
+      lineHeight: 1.1,
+      padding: '0 2px',
+      margin: 0,
+      color: '#111',
+      // Deckend (nicht transparent): überdeckt einen bereits ins Seitenbild
+      // gerenderten Original-Feldwert sauber — sonst Doppelbild.
+      background: '#eef4ff',
+      border: '1px solid rgba(37,99,235,0.55)',
+      borderRadius: 2,
+      outline: 'none',
+      resize: 'none' as const,
+      boxSizing: 'border-box' as const,
+    },
+    className: 'cursor-text read-only:cursor-default',
+  }
+
+  return field.multiLine ? (
+    <textarea {...common} />
+  ) : (
+    <input type="text" {...common} />
   )
 }

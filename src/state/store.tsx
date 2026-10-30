@@ -26,6 +26,8 @@ export interface AppState {
   annotations: Annotation[]
   tool: Tool
   selectedAnnotationId: string | null
+  /** Ausgefüllte Formularfelder, Schlüssel `docId::fieldName` → Wert. */
+  formFills: Record<string, string | boolean>
 }
 
 export const initialState: AppState = {
@@ -37,6 +39,7 @@ export const initialState: AppState = {
   annotations: [],
   tool: 'select',
   selectedAnnotationId: null,
+  formFills: {},
 }
 
 export type SelectMode = 'single' | 'toggle' | 'range'
@@ -63,6 +66,7 @@ export type Action =
     }
   | { type: 'DELETE_ANNOTATION'; id: string }
   | { type: 'SELECT_ANNOTATION'; id: string | null }
+  | { type: 'SET_FORM_FILL'; key: string; value: string | boolean }
   | { type: 'RESET' }
 
 function indexOfId(pages: PageDescriptor[], id: string | null): number {
@@ -244,6 +248,12 @@ function reducer(state: AppState, action: Action): AppState {
 
     case 'SELECT_ANNOTATION':
       return { ...state, selectedAnnotationId: action.id }
+
+    case 'SET_FORM_FILL':
+      return {
+        ...state,
+        formFills: { ...state.formFills, [action.key]: action.value },
+      }
 
     case 'RESET':
       return initialState

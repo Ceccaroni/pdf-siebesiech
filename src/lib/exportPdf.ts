@@ -74,6 +74,50 @@ function hexToRgb(hex: string) {
 }
 
 /**
+ * Füllt die AcroForm-Felder eines Quelldokuments aus den Nutzereingaben und
+ * flacht das Formular ein (Werte werden fest in den Seiteninhalt gerendert).
+ * Nur Felder, die der Nutzer geändert hat (Schlüssel `docId::name`), werden
+ * gesetzt; bereits im PDF vorhandene Werte bleiben durch das Flatten erhalten.
+ * Fehlt ein Feld oder passt der Typ nicht, wird es übersprungen. Nur wenn es
+ * tatsächlich Eingaben für diese Quelle gibt, wird eingebacken.
+ */
+function applyFormFills(
+  doc: PDFDocument,
+  docId: string,
+  formFills: Record<string, string | boolean>,
+): void {
+  const prefix = `${docId}::`
+  const entries = Object.entries(formFills).filter(([k]) => k.startsWith(prefix))
+  if (entries.length === 0) return
+  let form
+  try {
+    form = doc.getForm()
+  } catch {
+    return // kein (lesbares) Formular
+  }
+  for (const [key, value] of entries) {
+    const name = key.slice(prefix.length)
+    try {
+      if (typeof value === 'boolean') {
+        const cb = form.getCheckBox(name)
+        if (value) cb.check()
+        else cb.uncheck()
+      } else {
+        form.getTextField(name).setText(value)
+      }
+    } catch (e) {
+      console.warn(`Formularfeld "${name}" übersprungen:`, e)
+    }
+  }
+  try {
+    // Appearances aktualisieren und Felder fest einbacken.
+    form.flatten()
+  } catch (e) {
+    console.error('Formular-Flatten fehlgeschlagen:', e)
+  }
+}
+
+/**
  * Baut aus den Seiten-Deskriptoren ein neues PDF: Reihenfolge, Duplikate,
  * Löschungen, Drehungen und Anmerkungen (Weissfläche + Text) werden hier real
  * umgesetzt (pdf-lib, MIT).
@@ -82,6 +126,7 @@ export async function assemblePdf(
   pages: PageDescriptor[],
   sources: Map<string, SourceDoc>,
   annotations: Annotation[] = [],
+  formFills: Record<string, string | boolean> = {},
 ): Promise<Uint8Array> {
   const out = await PDFDocument.create()
   out.setProducer('PDF-Siebesiech')
@@ -127,6 +172,11 @@ export async function assemblePdf(
       const src = sources.get(docId)
       if (!src) throw new Error(`Quelle ${docId} fehlt`)
       doc = await PDFDocument.load(src.bytes, { ignoreEncryption: true })
+      // Formularfelder dieser Quelle füllen und *einbacken* (flatten) — und zwar
+      // VOR dem copyPages: ein über copyPages kopiertes Feld ist vom AcroForm
+      // des Zieldokuments abgekoppelt und liesse sich dort nicht mehr füllen.
+      // Flatten rendert die Werte fest in den Seiteninhalt (robust, WYSIWYG).
+      applyFormFills(doc, docId, formFills)
       loaded.set(docId, doc)
     }
     return doc

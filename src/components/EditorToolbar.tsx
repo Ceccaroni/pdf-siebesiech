@@ -4,6 +4,7 @@ import {
   Type,
   Square,
   PenLine,
+  FormInput,
   Minus,
   Plus,
   Trash2,
@@ -50,6 +51,14 @@ export function EditorToolbar({ disabled }: { disabled?: boolean }) {
         onClick={() => dispatch({ type: 'SET_TOOL', tool: 'redigieren' })}
       >
         <PenLine size={17} />
+      </ToolButton>
+      <ToolButton
+        active={tool === 'formular'}
+        disabled={disabled}
+        title="Formular ausfüllen (eingebettete Felder)"
+        onClick={() => dispatch({ type: 'SET_TOOL', tool: 'formular' })}
+      >
+        <FormInput size={17} />
       </ToolButton>
 
       {selected && (

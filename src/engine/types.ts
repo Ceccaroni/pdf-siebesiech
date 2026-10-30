@@ -29,7 +29,7 @@ export function normalizeRotation(deg: number): Rotation {
 // Positionen sind normalisiert (0..1) ab der linken oberen Ecke der *ungedrehten*
 // Seite — auflösungsunabhängig und einfach nach pdf-lib (y-up) umzurechnen.
 
-export type Tool = 'select' | 'text' | 'whiteout' | 'redigieren'
+export type Tool = 'select' | 'text' | 'whiteout' | 'redigieren' | 'formular'
 
 interface BaseAnnotation {
   id: string
@@ -95,6 +95,30 @@ export interface RectAnnotation extends BaseAnnotation {
 }
 
 export type Annotation = TextAnnotation | RectAnnotation
+
+/**
+ * Ein in das PDF eingebettetes Formularfeld (AcroForm-Widget), ausgelesen via
+ * pdf.js. Koordinaten normalisiert 0..1 ab oben links der *ungedrehten* Seite —
+ * wie die übrigen Anmerkungen. Nur die Darstellung/Bearbeitung im Editor nutzt
+ * diese Rechtecke; der Export füllt die Felder über ihren `name` (pdf-lib).
+ */
+export interface FormFieldInfo {
+  name: string
+  type: 'text' | 'checkbox'
+  nx: number
+  ny: number
+  nw: number
+  nh: number
+  readOnly: boolean
+  multiLine: boolean
+  /** Aktueller Wert im PDF: Text (string) bzw. angehakt (boolean). */
+  value: string | boolean
+}
+
+/** Schlüssel für einen Feld-Füllwert: eindeutig je Quelle + Feldname. */
+export function fieldKey(docId: string, name: string): string {
+  return `${docId}::${name}`
+}
 
 export const TEXT_COLORS = [
   '#1a1a1a',

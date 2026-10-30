@@ -17,7 +17,7 @@ function clamp(v: number, min: number, max: number): number {
 
 export default function App() {
   const { state, dispatch } = useStore()
-  const { pages, sources, activeId, annotations, selectedIds } = state
+  const { pages, sources, activeId, annotations, selectedIds, formFills } = state
 
   const [zoom, setZoom] = useState(1)
   const [busy, setBusy] = useState(false)
@@ -81,7 +81,7 @@ export default function App() {
       setBusy(true)
       try {
         const sourcesMap = new Map(Object.entries(sources))
-        const bytes = await assemblePdf(subset, sourcesMap, annotations)
+        const bytes = await assemblePdf(subset, sourcesMap, annotations, formFills)
         const base =
           docName && docName.toLowerCase().endsWith('.pdf')
             ? docName.slice(0, -4)
@@ -99,7 +99,7 @@ export default function App() {
         setBusy(false)
       }
     },
-    [pages, sources, annotations, docName, selectedIds],
+    [pages, sources, annotations, docName, selectedIds, formFills],
   )
 
   const hasPages = pages.length > 0

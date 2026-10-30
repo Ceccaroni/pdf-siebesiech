@@ -1,7 +1,7 @@
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
-import type { TextRun } from './types'
+import type { FormFieldInfo, TextRun } from './types'
 
 // pdf.js bringt seinen eigenen Worker mit — Dekodierung läuft dadurch off-thread,
 // wichtig für die schwache Schul-Hardware.
@@ -271,6 +271,74 @@ export async function getPageTextRuns(
       })
     }
     return runs
+  } finally {
+    page.cleanup()
+  }
+}
+
+/**
+ * Liest die ausfüllbaren Formularfelder (AcroForm-Widgets) einer Quellseite aus
+ * (pdf.js `getAnnotations`) und normalisiert ihre Rechtecke auf 0..1 ab oben
+ * links der *ungedrehten* Seite — derselbe Raum wie Textläufe/Anmerkungen.
+ * Liefert Text- und Checkbox-Felder; Radiobuttons/Auswahllisten werden (noch)
+ * übersprungen. Der Export füllt die Felder später über ihren `name` (pdf-lib).
+ */
+export async function getPageFormFields(
+  docId: string,
+  sourceIndex: number,
+): Promise<FormFieldInfo[]> {
+  const entry = openDocs.get(docId)
+  if (!entry) throw new Error(`Dokument ${docId} ist nicht geladen`)
+  const page = await entry.pdf.getPage(sourceIndex + 1)
+  try {
+    const vp = page.getViewport({ scale: 1, rotation: 0 })
+    const W = vp.width
+    const H = vp.height
+    const annots = (await page.getAnnotations({ intent: 'display' })) as Array<{
+      subtype?: string
+      fieldType?: string
+      fieldName?: string
+      rect?: number[]
+      fieldValue?: unknown
+      readOnly?: boolean
+      multiLine?: boolean
+      checkBox?: boolean
+      radioButton?: boolean
+      hidden?: boolean
+    }>
+    const fields: FormFieldInfo[] = []
+    for (const a of annots) {
+      if (a.subtype !== 'Widget' || !a.fieldName || a.hidden) continue
+      const r = a.rect
+      if (!r || r.length < 4) continue
+      // pdf.js liefert rect = [x1,y1,x2,y2] in PDF-Punkten (y-up, Ursprung unten
+      // links). Auf „ab oben links, normalisiert" umrechnen.
+      const x1 = Math.min(r[0], r[2])
+      const x2 = Math.max(r[0], r[2])
+      const y1 = Math.min(r[1], r[3])
+      const y2 = Math.max(r[1], r[3])
+      const base = {
+        name: a.fieldName,
+        nx: x1 / W,
+        ny: 1 - y2 / H,
+        nw: (x2 - x1) / W,
+        nh: (y2 - y1) / H,
+        readOnly: !!a.readOnly,
+        multiLine: !!a.multiLine,
+      }
+      if (a.fieldType === 'Tx') {
+        fields.push({
+          ...base,
+          type: 'text',
+          value: typeof a.fieldValue === 'string' ? a.fieldValue : '',
+        })
+      } else if (a.fieldType === 'Btn' && a.checkBox && !a.radioButton) {
+        // Checkbox: fieldValue "Off" = nicht angehakt.
+        const v = typeof a.fieldValue === 'string' ? a.fieldValue : 'Off'
+        fields.push({ ...base, type: 'checkbox', value: v !== 'Off' })
+      }
+    }
+    return fields
   } finally {
     page.cleanup()
   }
